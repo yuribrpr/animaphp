@@ -308,6 +308,7 @@ $inlineJs = <<<JS
         this.started = false;
         this.turnCount = 0;
         this.playerCooldown = false;
+        this.animationBusy = false;
         this.enemyTimer = null;
         this.updateUI();
         this.tlog('[SYS] Arena carregada. Oponente: ' + this.enemy.name + ' (HP:' + this.enemy.max_hp + ' ATK:' + this.enemy.atk + ' DEF:' + this.enemy.def + ' SPD:' + this.enemy.atkSpd + 'ms)', 'sys');
@@ -361,6 +362,47 @@ $inlineJs = <<<JS
         return { dmg: dmg, atkF: atkF, defF: defF, pctAtk: Math.round(atkRoll * 100), pctDef: Math.round(defRoll * 100) };
     };
 
+    BattleSystem.prototype.actorIdFromSpriteId = function(spriteId) {
+        return String(spriteId || '').replace('-sprite', '-actor');
+    };
+
+    BattleSystem.prototype.centerOf = function(el) {
+        var rect = el.getBoundingClientRect();
+        return { x: rect.left + (rect.width / 2), y: rect.top + (rect.height / 2) };
+    };
+
+    BattleSystem.prototype.playAttackMotion = function(attackerSpriteId, targetSpriteId) {
+        var attackerActor = document.getElementById(this.actorIdFromSpriteId(attackerSpriteId));
+        var targetActor = document.getElementById(this.actorIdFromSpriteId(targetSpriteId));
+        if (!attackerActor || !targetActor) {
+            return;
+        }
+
+        var attackerCenter = this.centerOf(attackerActor);
+        var targetCenter = this.centerOf(targetActor);
+        var dx = (targetCenter.x - attackerCenter.x) * 0.55;
+        var dy = (targetCenter.y - attackerCenter.y) * 0.22;
+        var dashClass = dx >= 0 ? 'dash-right' : 'dash-left';
+
+        attackerActor.classList.add('is-lunging', dashClass);
+        setTimeout(function() {
+            attackerActor.classList.remove('is-lunging', dashClass);
+        }, 800);
+
+        if (typeof attackerActor.animate === 'function') {
+            attackerActor.animate([
+                { transform: 'translate3d(0, 0, 0) scale(1)' },
+                { transform: 'translate3d(' + dx.toFixed(2) + 'px, ' + dy.toFixed(2) + 'px, 0) scale(1.04)', offset: 0.33 },
+                { transform: 'translate3d(' + (dx * 0.98).toFixed(2) + 'px, ' + (dy * 0.98).toFixed(2) + 'px, 0) scale(1.03)', offset: 0.86 },
+                { transform: 'translate3d(0, 0, 0) scale(1)' }
+            ], {
+                duration: 800,
+                easing: 'cubic-bezier(.22,.61,.36,1)',
+                fill: 'none'
+            });
+        }
+    };
+
     BattleSystem.prototype.showSlash = function(targetId) {
         var parent = document.getElementById(targetId).closest('.anima-panel');
         var slash = document.createElement('div');
@@ -373,13 +415,7 @@ $inlineJs = <<<JS
     BattleSystem.prototype.shakeSprite = function(id) {
         var el = document.getElementById(id);
         el.classList.add('hit-shake');
-        setTimeout(function() { el.classList.remove('hit-shake'); }, 400);
-    };
-
-    BattleSystem.prototype.flashWhite = function(id) {
-        var el = document.getElementById(id);
-        el.style.filter = 'brightness(2.5)';
-        setTimeout(function() { el.style.filter = ''; }, 100);
+        setTimeout(function() { el.classList.remove('hit-shake'); }, 360);
     };
 
     BattleSystem.prototype.showDmg = function(targetId, dmg) {
@@ -389,6 +425,21 @@ $inlineJs = <<<JS
         num.textContent = '-' + dmg;
         parent.appendChild(num);
         setTimeout(function() { num.remove(); }, 800);
+    };
+
+    BattleSystem.prototype.tryStartAnimation = function() {
+        if (this.animationBusy || this.isOver) {
+            return false;
+        }
+        this.animationBusy = true;
+        return true;
+    };
+
+    BattleSystem.prototype.endAnimationAfter = function(ms) {
+        var self = this;
+        setTimeout(function() {
+            self.animationBusy = false;
+        }, ms);
     };
 
     BattleSystem.prototype.startCooldown = function() {
@@ -425,7 +476,7 @@ $inlineJs = <<<JS
     };
 
     BattleSystem.prototype.attack = function() {
-        if (this.isOver || this.playerCooldown) return;
+        if (this.isOver || this.playerCooldown || this.animationBusy) return;
         this.turnCount++;
 
         if (!this.started) {
@@ -433,6 +484,7 @@ $inlineJs = <<<JS
             this.tlog('[SYS] Combate iniciado!', 'sys');
             this.startEnemyLoop();
         }
+        if (!this.tryStartAnimation()) return;
 
         var r = this.calcDamage(this.player.atk, this.enemy.def);
         this.enemy.hp -= r.dmg;
@@ -440,23 +492,29 @@ $inlineJs = <<<JS
         this.tlog('[ATK] ' + this.player.name + ' causou ' + r.dmg + ' de dano (' + r.atkF + ' atk@' + r.pctAtk + '% - ' + r.defF + ' def@' + r.pctDef + '% de ' + this.enemy.name + ') | HP restante: ' + Math.max(0, Math.floor(this.enemy.hp)) + '/' + this.enemy.max_hp, 'atk');
 
         var self = this;
-        this.showSlash('enemy-sprite');
+        var hitAt = 320;
+        var resolveAt = 780;
+        this.playAttackMotion('player-sprite', 'enemy-sprite');
         setTimeout(function() {
-            self.flashWhite('enemy-sprite');
+            self.showSlash('enemy-sprite');
+        }, hitAt - 70);
+        setTimeout(function() {
             self.shakeSprite('enemy-sprite');
             self.showDmg('enemy-sprite', r.dmg);
-        }, 180);
+        }, hitAt);
 
         setTimeout(function() {
             self.updateUI();
             if (self.enemy.hp <= 0) { self.win(); return; }
-        }, 350);
+        }, resolveAt);
 
         this.startCooldown();
+        this.endAnimationAfter(840);
     };
 
     BattleSystem.prototype.enemyAttack = function() {
-        if (this.isOver) return;
+        if (this.isOver || this.animationBusy) return;
+        if (!this.tryStartAnimation()) return;
 
         var r = this.calcDamage(this.enemy.atk, this.player.def);
         this.player.hp -= r.dmg;
@@ -464,17 +522,22 @@ $inlineJs = <<<JS
         this.tlog('[DEF] ' + this.enemy.name + ' causou ' + r.dmg + ' de dano (' + r.atkF + ' atk@' + r.pctAtk + '% - ' + r.defF + ' def@' + r.pctDef + '% de ' + this.player.name + ') | HP restante: ' + Math.max(0, Math.floor(this.player.hp)) + '/' + this.player.max_hp, 'def');
 
         var self = this;
-        this.showSlash('player-sprite');
+        var hitAt = 320;
+        var resolveAt = 780;
+        this.playAttackMotion('enemy-sprite', 'player-sprite');
         setTimeout(function() {
-            self.flashWhite('player-sprite');
+            self.showSlash('player-sprite');
+        }, hitAt - 70);
+        setTimeout(function() {
             self.shakeSprite('player-sprite');
             self.showDmg('player-sprite', r.dmg);
-        }, 180);
+        }, hitAt);
 
         setTimeout(function() {
             self.updateUI();
             if (self.player.hp <= 0) { self.lose(); return; }
-        }, 350);
+        }, resolveAt);
+        this.endAnimationAfter(840);
     };
 
     BattleSystem.prototype.endBattle = function() {
@@ -680,6 +743,35 @@ $renderContent = function() use ($playerAnima, $enemyAnima, $pAtkSpd, $eAtkSpd, 
             align-items: center;
             overflow: visible;
         }
+        .anima-actor {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transform-origin: 50% 70%;
+            will-change: transform;
+        }
+        .anima-actor.is-lunging .anima-sprite {
+            filter: none;
+        }
+        .anima-actor.dash-right.is-lunging .anima-sprite {
+            animation: dashRight 0.80s ease-out;
+        }
+        .anima-actor.dash-left.is-lunging .anima-sprite {
+            animation: dashLeft 0.80s ease-out;
+        }
+        @keyframes dashRight {
+            0% { transform: translateX(0) skewX(0deg); }
+            33% { transform: translateX(1px) skewX(-5deg); }
+            72% { transform: translateX(0.5px) skewX(-2deg); }
+            100% { transform: translateX(0) skewX(0deg); }
+        }
+        @keyframes dashLeft {
+            0% { transform: translateX(0) skewX(0deg); }
+            33% { transform: translateX(-1px) skewX(5deg); }
+            72% { transform: translateX(-0.5px) skewX(2deg); }
+            100% { transform: translateX(0) skewX(0deg); }
+        }
         .anima-sprite {
             width: 138px; height: 138px;
             object-fit: contain;
@@ -795,7 +887,7 @@ $renderContent = function() use ($playerAnima, $enemyAnima, $pAtkSpd, $eAtkSpd, 
             border: 6px solid transparent;
             border-top-color: #343a40;
         }
-        .anima-sprite:hover + .stat-popover,
+        .anima-actor:hover + .stat-popover,
         .stat-popover:hover {
             opacity: 1;
             transform: translateX(-50%) scale(1);
@@ -835,7 +927,7 @@ $renderContent = function() use ($playerAnima, $enemyAnima, $pAtkSpd, $eAtkSpd, 
                     </div>
                 </div>
 
-                <div class="card-body battle-bg" style="<?= e($battleBgStyle) ?>">
+                <div id="battle-arena" class="card-body battle-bg" style="<?= e($battleBgStyle) ?>">
                     <div class="row battle-stage">
                         <div class="col-6 battle-side">
                             <div class="battle-hud mb-2">
@@ -862,7 +954,9 @@ $renderContent = function() use ($playerAnima, $enemyAnima, $pAtkSpd, $eAtkSpd, 
                                 </div>
                             </div>
                             <div class="anima-panel">
-                                <img id="player-sprite" src="<?= $playerImg ?>" class="anima-sprite" alt="Anima">
+                                <div id="player-actor" class="anima-actor">
+                                    <img id="player-sprite" src="<?= $playerImg ?>" class="anima-sprite" alt="Anima">
+                                </div>
                                 <div class="stat-popover">
                                     <div class="stat-row"><span class="stat-label">ATK</span> <span class="stat-val text-info"><?= e($playerAnima['attack']) ?></span></div>
                                     <div class="stat-row"><span class="stat-label">DEF</span> <span class="stat-val text-primary"><?= e($playerAnima['defense']) ?></span></div>
@@ -886,7 +980,9 @@ $renderContent = function() use ($playerAnima, $enemyAnima, $pAtkSpd, $eAtkSpd, 
                                 </div>
                             </div>
                             <div class="anima-panel">
-                                <img id="enemy-sprite" src="<?= $enemyImg ?>" class="anima-sprite" alt="Inimigo">
+                                <div id="enemy-actor" class="anima-actor">
+                                    <img id="enemy-sprite" src="<?= $enemyImg ?>" class="anima-sprite" alt="Inimigo">
+                                </div>
                                 <div class="stat-popover">
                                     <div class="stat-row"><span class="stat-label">ATK</span> <span class="stat-val text-info"><?= e($enemyAnima['attack']) ?></span></div>
                                     <div class="stat-row"><span class="stat-label">DEF</span> <span class="stat-val text-primary"><?= e($enemyAnima['defense']) ?></span></div>
