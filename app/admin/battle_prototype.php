@@ -590,7 +590,6 @@ $inlineJs = <<<JS
             if (rewardResult && rewardResult.ok) {
                 self.tlog('[SYS] Recompensas recebidas: +' + rewardResult.exp_gained + ' EXP / +' + rewardResult.bits_gained + ' Bits.', 'res');
                 rewardHtml += '<p class="mb-1">Recompensas: <b>+' + rewardResult.exp_gained + ' EXP</b> e <b>+' + rewardResult.bits_gained + ' Bits</b>.</p>';
-                rewardHtml += '<p class="mb-1">Bits totais do domador: <b>' + rewardResult.total_bits + '</b>.</p>';
                 if (rewardResult.levels_gained > 0) {
                     self.tlog('[SYS] Level up! Novo nivel do seu Anima: ' + rewardResult.new_level + '.', 'res');
                     rewardHtml += '<p class="mb-0">Seu Anima subiu para o nivel <b>' + rewardResult.new_level + '</b>.</p>';
@@ -939,18 +938,18 @@ $renderContent = function() use ($playerAnima, $enemyAnima, $pAtkSpd, $eAtkSpd, 
                                     <span class="badge badge-info"><?= e($playerAnima['species']) ?></span>
                                 </div>
                                 <small class="d-flex justify-content-between">
-                                    <span>HP</span>
+                                    <span>Vida</span>
                                     <span id="p-hp-text">-</span>
                                 </small>
                                 <div class="progress battle-progress">
                                     <div id="p-hp-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width: 100%"></div>
                                 </div>
                                 <small class="d-flex justify-content-between mt-2">
-                                    <span>EXP</span>
+                                    <span>Experiência</span>
                                     <span><?= $pExp ?> / <?= $pNextExp ?></span>
                                 </small>
                                 <div class="progress exp-track">
-                                    <div class="progress-bar bg-info" style="width: <?= round(($pExp / $pNextExp) * 100) ?>%"></div>
+                                    <div class="progress-bar bg-warning" style="width: <?= round(($pExp / $pNextExp) * 100) ?>%"></div>
                                 </div>
                             </div>
                             <div class="anima-panel">
@@ -972,7 +971,7 @@ $renderContent = function() use ($playerAnima, $enemyAnima, $pAtkSpd, $eAtkSpd, 
                                     <span class="badge badge-danger">Inimigo</span>
                                 </div>
                                 <small class="d-flex justify-content-between">
-                                    <span>HP</span>
+                                    <span>Vida</span>
                                     <span id="e-hp-text">-</span>
                                 </small>
                                 <div class="progress battle-progress">
