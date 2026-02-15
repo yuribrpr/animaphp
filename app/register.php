@@ -6,7 +6,6 @@ if (current_user()) {
 }
 
 $error = get_flash('error');
-
 $name = '';
 $email = '';
 
@@ -24,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (mb_strlen($name) < 2) {
             $error = 'Nome muito curto.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = 'Email inválido.';
+            $error = 'E-mail inválido.';
         } elseif (mb_strlen($password) < 6) {
             $error = 'A senha deve ter no mínimo 6 caracteres.';
         } elseif (!hash_equals($password, $password2)) {
@@ -40,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Throwable $t) {
                 $code = (string)$t->getCode();
                 if (str_contains($code, '23000')) {
-                    $error = 'Esse email já está cadastrado.';
+                    $error = 'Esse e-mail já está cadastrado.';
                 } else {
                     $error = 'Não foi possível cadastrar. Verifique o banco de dados.';
                 }
@@ -86,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
         </div>
         <div class="input-group mb-3">
-          <input type="email" class="form-control" placeholder="Email" name="email" value="<?= e($email) ?>" autocomplete="email" required>
+          <input type="email" class="form-control" placeholder="E-mail" name="email" value="<?= e($email) ?>" autocomplete="email" required>
           <div class="input-group-append">
             <div class="input-group-text">
               <span class="fas fa-envelope"></span>
@@ -127,4 +126,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="/dist/js/adminlte.min.js"></script>
 </body>
 </html>
-

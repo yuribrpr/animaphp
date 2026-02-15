@@ -7,7 +7,6 @@ if (current_user()) {
 
 $error = get_flash('error');
 $success = get_flash('success');
-
 $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -18,9 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = (string)($_POST['password'] ?? '');
 
         if ($email === '' || $password === '') {
-            $error = 'Informe email e senha.';
+            $error = 'Informe e-mail e senha.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = 'Email inválido.';
+            $error = 'E-mail inválido.';
         } else {
             try {
                 $stmt = db()->prepare('SELECT id, password_hash FROM users WHERE email = ? LIMIT 1');
@@ -28,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user = $stmt->fetch();
 
                 if (!$user || !password_verify($password, (string)$user['password_hash'])) {
-                    $error = 'Email ou senha incorretos.';
+                    $error = 'E-mail ou senha incorretos.';
                 } else {
                     login_user((int)$user['id']);
                     redirect('/app/home.php');
@@ -71,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <form action="/app/login.php" method="post">
         <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
         <div class="input-group mb-3">
-          <input type="email" class="form-control" placeholder="Email" name="email" value="<?= e($email) ?>" autocomplete="email" required>
+          <input type="email" class="form-control" placeholder="E-mail" name="email" value="<?= e($email) ?>" autocomplete="email" required>
           <div class="input-group-append">
             <div class="input-group-text">
               <span class="fas fa-envelope"></span>
@@ -106,4 +105,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="/dist/js/adminlte.min.js"></script>
 </body>
 </html>
-

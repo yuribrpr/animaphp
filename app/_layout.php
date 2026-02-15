@@ -10,6 +10,8 @@ $extraJs = isset($extraJs) && is_array($extraJs) ? $extraJs : [];
 $inlineJs = isset($inlineJs) ? (string)$inlineJs : '';
 $renderContent = isset($renderContent) && is_callable($renderContent) ? $renderContent : null;
 $scriptName = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+$currentMapId = (int)($_GET['map_id'] ?? 0);
+$isDebugBattle = str_starts_with($scriptName, '/app/admin/battle_prototype.php') && isset($_GET['debug']);
 
 if (!$renderContent) {
     throw new RuntimeException('Layout precisa de $renderContent callable');
@@ -17,7 +19,35 @@ if (!$renderContent) {
 
 $activeHome = str_starts_with($scriptName, '/app/home.php');
 $activeAdminAnimas = str_starts_with($scriptName, '/app/admin/animas.php');
-$activeAdmin = $activeAdminAnimas;
+$activeAdminEnemies = str_starts_with($scriptName, '/app/admin/enemies.php');
+$activeAdminMaps = str_starts_with($scriptName, '/app/admin/maps.php');
+$activeAdoption = str_starts_with($scriptName, '/app/animas/adoption.php');
+$activeMyAnimas = str_starts_with($scriptName, '/app/animas/my_animas.php');
+$activeBattlePage = str_starts_with($scriptName, '/app/admin/battle_prototype.php');
+$activeAdminDebugBattle = $activeBattlePage && $isDebugBattle;
+$activeAnimaworldBattle = $activeBattlePage && !$isDebugBattle;
+
+$menuOpenCenterAnima = $activeAdoption || $activeMyAnimas;
+$menuOpenAnimaworld = $activeAnimaworldBattle;
+$menuOpenAdmin = $activeAdminAnimas || $activeAdminEnemies || $activeAdminMaps || $activeAdminDebugBattle;
+
+$animaworldMaps = [];
+try {
+    $stmtMaps = db()->query(
+        'SELECT m.id, m.name
+         FROM maps m
+         WHERE EXISTS (
+             SELECT 1
+             FROM map_enemies me
+             INNER JOIN enemies e ON e.id = me.enemy_id
+             WHERE me.map_id = m.id
+         )
+         ORDER BY m.name ASC'
+    );
+    $animaworldMaps = $stmtMaps->fetchAll();
+} catch (Throwable $t) {
+    $animaworldMaps = [];
+}
 
 $flashError = get_flash('error');
 $flashSuccess = get_flash('success');
@@ -41,33 +71,15 @@ $flashSuccess = get_flash('success');
   <nav class="main-header navbar navbar-expand navbar-white navbar-light">
     <ul class="navbar-nav">
       <li class="nav-item">
-        <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+        <a class="nav-link" data-widget="pushmenu" href="#" role="button" aria-label="Alternar menu"><i class="fas fa-bars"></i></a>
       </li>
       <li class="nav-item d-none d-sm-inline-block">
         <a href="/app/home.php" class="nav-link">Home</a>
       </li>
     </ul>
     <ul class="navbar-nav ml-auto">
-      <!-- Theme Toggle -->
-      <li class="nav-item dropdown">
-        <a class="nav-link" data-toggle="dropdown" href="#" role="button" title="Tema">
-          <i id="theme-icon" class="fas fa-adjust"></i>
-        </a>
-        <div class="dropdown-menu dropdown-menu-right dropdown-menu-sm">
-          <a class="dropdown-item theme-opt" href="#" data-theme="light">
-            <i class="fas fa-sun mr-2 text-warning"></i> Claro
-          </a>
-          <a class="dropdown-item theme-opt" href="#" data-theme="dark">
-            <i class="fas fa-moon mr-2 text-info"></i> Escuro
-          </a>
-          <div class="dropdown-divider"></div>
-          <a class="dropdown-item theme-opt" href="#" data-theme="system">
-            <i class="fas fa-desktop mr-2 text-secondary"></i> Sistema
-          </a>
-        </div>
-      </li>
       <li class="nav-item">
-        <a class="nav-link" href="/app/logout.php" role="button" title="Sair">
+        <a class="nav-link" href="/app/logout.php" role="button" title="Sair" aria-label="Sair">
           <i class="fas fa-sign-out-alt"></i>
         </a>
       </li>
@@ -76,7 +88,7 @@ $flashSuccess = get_flash('success');
 
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <a href="/app/home.php" class="brand-link">
-      <img src="/dist/img/AdminLTELogo.png" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+      <img src="/dist/img/AdminLTELogo.png" alt="AdminLTE Logo" class="brand-image img-circle elevation-3">
       <span class="brand-text font-weight-light"><?= e(APP_NAME) ?></span>
     </a>
 
@@ -87,62 +99,109 @@ $flashSuccess = get_flash('success');
         </div>
         <div class="info">
           <a href="#" class="d-block"><?= e((string)$user['name']) ?></a>
+          <small class="text-muted d-block">
+            Bits: <?= e(number_format((int)($user['bits'] ?? 0), 0, ',', '.')) ?>
+          </small>
         </div>
       </div>
 
       <nav class="mt-2">
-        <ul class="nav nav-pills nav-legacy nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
           <li class="nav-item">
             <a href="/app/home.php" class="nav-link <?= $activeHome ? 'active' : '' ?>">
               <i class="nav-icon fas fa-home"></i>
-              <p>Homepage</p>
+              <p>Inicio</p>
             </a>
           </li>
 
-          <li class="nav-item <?= $activeAdmin ? 'menu-open' : '' ?>">
-            <a href="#" class="nav-link <?= $activeAdmin ? 'active' : '' ?>">
-              <i class="nav-icon fas fa-tools"></i>
+          <li class="nav-item <?= $menuOpenCenterAnima ? 'menu-open' : '' ?>">
+            <a href="#" class="nav-link <?= $menuOpenCenterAnima ? 'active' : '' ?>">
+              <i class="nav-icon fas fa-paw"></i>
               <p>
-                Administração
+                Centro Anima
                 <i class="right fas fa-angle-left"></i>
               </p>
             </a>
             <ul class="nav nav-treeview">
               <li class="nav-item">
-                <a href="/app/admin/animas.php" class="nav-link <?= str_starts_with($scriptName, '/app/admin/animas.php') ? 'active' : '' ?>">
+                <a href="/app/animas/adoption.php" class="nav-link <?= $activeAdoption ? 'active' : '' ?>">
                   <i class="far fa-circle nav-icon"></i>
-                  <p>Animas</p>
+                  <p>Centro de Adocao</p>
                 </a>
               </li>
               <li class="nav-item">
-                <a href="/app/admin/enemies.php" class="nav-link <?= str_starts_with($scriptName, '/app/admin/enemies.php') ? 'active' : '' ?>">
+                <a href="/app/animas/my_animas.php" class="nav-link <?= $activeMyAnimas ? 'active' : '' ?>">
                   <i class="far fa-circle nav-icon"></i>
-                  <p>Inimigos</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="/app/admin/battle_prototype.php" class="nav-link <?= str_starts_with($scriptName, '/app/admin/battle_prototype.php') ? 'active' : '' ?>">
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>Batalha (Protótipo)</p>
+                  <p>Meus Animas</p>
                 </a>
               </li>
             </ul>
           </li>
 
-          <li class="nav-header">CENTRO ANIMA</li>
-          <li class="nav-item">
-            <a href="/app/animas/adoption.php" class="nav-link <?= str_starts_with($scriptName, '/app/animas/adoption.php') ? 'active' : '' ?>">
-              <i class="nav-icon fas fa-paw"></i>
-              <p>Centro de Adoção</p>
+          <li class="nav-item <?= $menuOpenAnimaworld ? 'menu-open' : '' ?>">
+            <a href="#" class="nav-link <?= $menuOpenAnimaworld ? 'active' : '' ?>">
+              <i class="nav-icon fas fa-globe-americas"></i>
+              <p>
+                Animaworld
+                <i class="right fas fa-angle-left"></i>
+              </p>
             </a>
+            <ul class="nav nav-treeview">
+              <?php if (!empty($animaworldMaps)): ?>
+                <?php foreach ($animaworldMaps as $worldMap): ?>
+                  <?php $mapId = (int)($worldMap['id'] ?? 0); ?>
+                  <li class="nav-item">
+                    <a href="/app/admin/battle_prototype.php?map_id=<?= e((string)$mapId) ?>" class="nav-link <?= ($activeAnimaworldBattle && $currentMapId === $mapId) ? 'active' : '' ?>">
+                      <i class="far fa-circle nav-icon"></i>
+                      <p><?= e((string)($worldMap['name'] ?? 'Mapa')) ?></p>
+                    </a>
+                  </li>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <li class="nav-item">
+                  <a href="#" class="nav-link disabled">
+                    <i class="far fa-circle nav-icon"></i>
+                    <p>Nenhum mapa disponivel</p>
+                  </a>
+                </li>
+              <?php endif; ?>
+            </ul>
           </li>
 
-          <li class="nav-header">ANIMALINK</li>
-          <li class="nav-item">
-            <a href="/app/animas/my_animas.php" class="nav-link <?= str_starts_with($scriptName, '/app/animas/my_animas.php') ? 'active' : '' ?>">
-              <i class="nav-icon fas fa-mobile-alt"></i>
-              <p>Meus Animas</p>
+          <li class="nav-item <?= $menuOpenAdmin ? 'menu-open' : '' ?>">
+            <a href="#" class="nav-link <?= $menuOpenAdmin ? 'active' : '' ?>">
+              <i class="nav-icon fas fa-tools"></i>
+              <p>
+                Administracao
+                <i class="right fas fa-angle-left"></i>
+              </p>
             </a>
+            <ul class="nav nav-treeview">
+              <li class="nav-item">
+                <a href="/app/admin/animas.php" class="nav-link <?= $activeAdminAnimas ? 'active' : '' ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Animas</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/app/admin/enemies.php" class="nav-link <?= $activeAdminEnemies ? 'active' : '' ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Inimigos</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/app/admin/maps.php" class="nav-link <?= $activeAdminMaps ? 'active' : '' ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Mapas</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="/app/admin/battle_prototype.php?debug=1" class="nav-link <?= $activeAdminDebugBattle ? 'active' : '' ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Batalha (Debug)</p>
+                </a>
+              </li>
+            </ul>
           </li>
 
           <li class="nav-item">
@@ -160,7 +219,7 @@ $flashSuccess = get_flash('success');
     <section class="content-header">
       <div class="container-fluid">
         <div class="row mb-2">
-          <div class="col-sm-6">
+          <div class="col-sm-12">
             <h1><?= e($pageTitle) ?></h1>
           </div>
         </div>
@@ -170,10 +229,20 @@ $flashSuccess = get_flash('success');
     <section class="content">
       <div class="container-fluid">
         <?php if ($flashError): ?>
-          <div class="alert alert-danger"><?= e($flashError) ?></div>
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <?= nl2br(e(str_replace('<br>', "\n", $flashError))) ?>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Fechar">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
         <?php endif; ?>
         <?php if ($flashSuccess): ?>
-          <div class="alert alert-success"><?= e($flashSuccess) ?></div>
+          <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <?= nl2br(e(str_replace('<br>', "\n", $flashSuccess))) ?>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Fechar">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
         <?php endif; ?>
 
         <?php $renderContent(); ?>
@@ -183,6 +252,7 @@ $flashSuccess = get_flash('success');
 
   <footer class="main-footer">
     <strong><?= e(APP_NAME) ?></strong>
+    <div class="float-right d-none d-sm-inline-block">AdminLTE</div>
   </footer>
 </div>
 
@@ -192,47 +262,6 @@ $flashSuccess = get_flash('success');
 <?php foreach ($extraJs as $src): ?>
   <script src="<?= e((string)$src) ?>"></script>
 <?php endforeach; ?>
-<script>
-(function() {
-    function getSystemPref() {
-        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    function applyTheme(mode) {
-        var actual = mode === 'system' ? getSystemPref() : mode;
-        var body = document.body;
-        var nav = document.querySelector('.main-header.navbar');
-        if (actual === 'dark') {
-            body.classList.add('dark-mode');
-            if (nav) { nav.classList.remove('navbar-white', 'navbar-light'); nav.classList.add('navbar-dark'); }
-        } else {
-            body.classList.remove('dark-mode');
-            if (nav) { nav.classList.remove('navbar-dark'); nav.classList.add('navbar-white', 'navbar-light'); }
-        }
-        var icon = document.getElementById('theme-icon');
-        if (icon) {
-            icon.className = mode === 'dark' ? 'fas fa-moon' : (mode === 'light' ? 'fas fa-sun' : 'fas fa-desktop');
-        }
-        document.querySelectorAll('.theme-opt').forEach(function(el) {
-            el.classList.toggle('active', el.getAttribute('data-theme') === mode);
-        });
-    }
-    var saved = localStorage.getItem('theme') || 'system';
-    applyTheme(saved);
-    if (window.matchMedia) {
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-            if ((localStorage.getItem('theme') || 'system') === 'system') applyTheme('system');
-        });
-    }
-    document.addEventListener('click', function(e) {
-        var opt = e.target.closest('.theme-opt');
-        if (!opt) return;
-        e.preventDefault();
-        var mode = opt.getAttribute('data-theme');
-        localStorage.setItem('theme', mode);
-        applyTheme(mode);
-    });
-})();
-</script>
 <?php if ($inlineJs !== ''): ?>
   <script><?= $inlineJs ?></script>
 <?php endif; ?>
